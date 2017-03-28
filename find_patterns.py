@@ -64,7 +64,8 @@ cne_list.rename(columns={0:'CNE_NAME'}, inplace=True)
 #create a column for each symbol
 i = 1
 for s in symbols:
-	cne_list.insert(i, s, 0.01)
+	#apply additive smoothing on data in order to avoid divisions by 0
+	cne_list.insert(i, s, 0.00001)
 	i+=1
 
 #print cne_list
@@ -118,47 +119,98 @@ cne_names = cne_names.values.tolist()
 
 #************************************************* MAIN METHOD *****************************************************#
 
+thisK = 3
+higherRandScore = 0
+betterK = 0
+
+
 def main():
-
-
-	cnes_objs = []
-	for row in cne_data:
-		cnes_objs.append(CNE(row))
-
-# Calculate clusters applying Kmeans with Euclidean distance and Kmeans with KL distance
-
-	clustersE = kmeans(cnes_objs, 3, get_E_Distance)
-	clustersK = kmeans(cnes_objs, 3, get_K_Distance)
-
-
-# Obtain cluster values (0,1,2) in order to measure clustering similarity
 	
-	clusterValuesE = []
-	clusterValuesK = []
-	i = 0
+	global thisK
+	global higherRandScore
+	#higherRandScore = 0
+	global betterK
+	#betterK = 0
+	while thisK < 10: 
+		iterate = 0	
+		while iterate < 3:
+			cnes_objs = []
+			for row in cne_data:
+				cnes_objs.append(CNE(row))
+
+		# Calculate clusters applying Kmeans with Euclidean distance and Kmeans with KL distance
+
+			print "Running k-means / E .................  -- k =",thisK
+			clustersE = kmeans(cnes_objs, thisK, get_E_Distance)
+			print "Running k-means / KL.................  -- k =",thisK
+			clustersK = kmeans(cnes_objs, thisK, get_K_Distance)
 
 
-	while i < 3:
+		# Obtain cluster values k in order to measure clustering similarity
+	
+			clusterValuesE = []
+			clusterValuesK = []
+
+			i = 0
+			countInstancesE = [0] * thisK
+			countInstancesK = [0] * thisK
+			while i < thisK:
 		
-		CNEsE = clustersE[i].CNEs
-		CNEsK = clustersK[i].CNEs
+				CNEsE = clustersE[i].CNEs
+				CNEsK = clustersK[i].CNEs
+				
 
-		for f in CNEsE:
-			clusterValuesE.append(i)
-		for f in CNEsK:
-			clusterValuesK.append(i)
-		i += 1
+				for f in CNEsE:
+					clusterValuesE.append(i)
+					countInstancesE[i] += 1
+				for f in CNEsK:
+					clusterValuesK.append(i)
+					countInstancesK[i] += 1
+				i += 1
 
 	
-	for row in CNEsE:
-		print row
+		#check the number of elements that were assigned to each clusters
 
-	for row in CNEsK:
-		print row
+						
+			if(len(countInstancesE) > 0 and len(countInstancesK) > 0):
+				j = 0
+				for i in countInstancesE:
+					print "E - Cluster centroid: " , j, " n. instances assigned: " , i
+					j +=1
 
-	print "The Rand Index between the two clustering algorithms is:", adjusted_rand_score(clusterValuesK,clusterValuesE)
+				j = 0
+				for i in countInstancesK:
+					print "KL - Cluster centroid: " , j , " n. instances assigned: ", i 
+					j+= 1
+
+	
+
+			
 
 
+
+
+
+			#for row in CNEsK:
+			#	print row
+
+			thisRandScore = 0 
+			thisRandScore = adjusted_rand_score(clusterValuesK,clusterValuesE)
+
+			print "The Rand Index between the two clustering algorithms is:", thisRandScore
+			print "The K was = " , thisK
+			
+			if (thisRandScore > higherRandScore):
+				higherRandScore = thisRandScore
+				betterK = thisK
+			
+			iterate += 1
+
+		thisK += 1
+		
+#temporary evaluation between the two clusterings that will be soon replaced with a proper evaluation technique
+	print "The highest Rand Score was: ",higherRandScore
+	print "The best K performance was: k = ",betterK
 
 
 
@@ -180,6 +232,7 @@ class CNE:
 
 #******************************* CLUSTER CLASS ***************************************#
 
+
 class Cluster:
 	def __init__(self,CNEs):
 		if len(CNEs) == 0: raise Exception("ILLEGAL: empty cluster")
@@ -187,6 +240,8 @@ class Cluster:
 		#the features that belong to this cluster
 		self.CNEs = CNEs
 		self.n = CNEs[0].n
+		if(self.n == 0 ):
+			print "**************No features belong to this cluster**********************	"
 		self.centroid = self.calculateCentroid()
 
 		 # The number of featues
@@ -293,8 +348,15 @@ def kmeans(CNEs, k, getDistance):
 def get_E_Distance(a,b):
     
 #Euclidean Distance
+
+    if(a.n == 0 or b.n ==0):
+        print "******************No features belong to this cluster in get_E_Distance***************************"
+	
+
     if a.n != b.n:
+	#main()
         raise Exception("ILLEGAL: non comparable points")
+	
     
     ret = reduce(lambda x,y: x + pow((a.features[y]-b.features[y]), 2),range(a.n),0.0)
     return math.sqrt(ret)
@@ -304,9 +366,12 @@ def get_E_Distance(a,b):
 #**************************************** KL DIVERGENCE FUNCTION *******************************************#
 
 	
-def get_K_Distance(f,cluster):
-    
-	distance = entropy(cluster.features,f.features)
+def get_K_Distance(cne,cluster):
+        if(cne.n == 0 or cluster.n == 0):
+           print "***********No features belong to this cluster in get_K_Distance*******************"    
+	   
+
+	distance = entropy(cluster.features,cne.features)
 	#print distance
 	return distance
 
@@ -315,7 +380,15 @@ def get_K_Distance(f,cluster):
 # INITIALISE MAIN METHOD
 
 if __name__ == "__main__": 
-	main()
+	i = 0
+	while i < 10:
+		try:
+			main()
+		except:
+			print "Exception raised n. ", i
+
+		i += 1
+	
 
 
 
