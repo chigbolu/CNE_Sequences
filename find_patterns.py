@@ -8,8 +8,10 @@ import subprocess
 from collections import defaultdict
 from scipy.stats import entropy
 from sklearn.metrics.cluster import adjusted_rand_score
+from sklearn.metrics import *
 
 
+additive_smoothing = 0.01
 raw_data = pd.read_csv('matches.csv', header=0)
 
 #data = [value for value in raw_data]
@@ -41,6 +43,8 @@ for index, row in data_CNE_SYM.iterrows():
 	thisSYM = row["SYMBOL"]
 	sym_dict[thisSYM]
 
+
+
 #this could be replaced with a normal dictionary that does not have array [] 
 for key in sym_dict:
 	symbols.append(key)
@@ -65,7 +69,7 @@ cne_list.rename(columns={0:'CNE_NAME'}, inplace=True)
 i = 1
 for s in symbols:
 	#apply additive smoothing on data in order to avoid divisions by 0
-	cne_list.insert(i, s, 0.00001)
+	cne_list.insert(i, s, additive_smoothing)
 	i+=1
 
 #print cne_list
@@ -110,30 +114,31 @@ cne_data = cne_list.values.tolist()
 #convert cne_names to list
 cne_names = cne_names.values.tolist()
 
-#i = 0
-#for row in cne_names:
-#	if(i< 10):
-#		print row
-#	i += 1
-
 
 #************************************************* MAIN METHOD *****************************************************#
 
-thisK = 3
-higherRandScore = 0
-betterK = 0
-
+overallPerformance = {'E':-5,'KL':-5,'bestkKL':0, 'bestkE':0}
+thisK = 2
+iterate = 0
+bestValuesE = []
+bestValuesK = []
+targetK = []
+targetE = []
 
 def main():
-	
-	global thisK
-	global higherRandScore
-	#higherRandScore = 0
-	global betterK
-	#betterK = 0
-	while thisK < 10: 
-		iterate = 0	
-		while iterate < 3:
+
+	global thisK 
+	global overallPerformance 
+	#overallPerformance = {'E':-5,'KL':-5,'bestkKL':0, 'bestkE':0}
+
+	while thisK < 6: 
+
+		global iterate 
+		global targetK
+		global targerE
+		print "Running k-Means  -  k = ",thisK 
+
+		while iterate < 10:
 			cnes_objs = []
 			for row in cne_data:
 				cnes_objs.append(CNE(row))
@@ -141,13 +146,16 @@ def main():
 		# Calculate clusters applying Kmeans with Euclidean distance and Kmeans with KL distance
 
 			print "Running k-means / E .................  -- k =",thisK
-			clustersE = kmeans(cnes_objs, thisK, get_E_Distance)
+			clustersE = kmeans(cnes_objs, thisK, get_K_Distance)
 			print "Running k-means / KL.................  -- k =",thisK
 			clustersK = kmeans(cnes_objs, thisK, get_K_Distance)
 
 
 		# Obtain cluster values k in order to measure clustering similarity
 	
+
+			global clusterValuesE
+			global clusterValuesK
 			clusterValuesE = []
 			clusterValuesK = []
 
@@ -167,51 +175,54 @@ def main():
 					clusterValuesK.append(i)
 					countInstancesK[i] += 1
 				i += 1
-
-	
-		#check the number of elements that were assigned to each clusters
-
-						
-			if(len(countInstancesE) > 0 and len(countInstancesK) > 0):
-				j = 0
-				for i in countInstancesE:
-					print "E - Cluster centroid: " , j, " n. instances assigned: " , i
-					j +=1
-
-				j = 0
-				for i in countInstancesK:
-					print "KL - Cluster centroid: " , j , " n. instances assigned: ", i 
-					j+= 1
-
 	
 
-			
 
 
+			#score = adjusted_rand_score(clusterValuesK,clusterValuesE)
+			score_KL = silhouette_score(cne_data, clusterValuesK, sample_size= len(cne_data))
+			score_E =  silhouette_score(cne_data, clusterValuesE, sample_size=len(cne_data))
 
+			#print "The Rand Index between the two clustering algorithms is:", rand_score
+			#print "The K was = " , thisK
 
-
-			#for row in CNEsK:
-			#	print row
-
-			thisRandScore = 0 
-			thisRandScore = adjusted_rand_score(clusterValuesK,clusterValuesE)
-
-			print "The Rand Index between the two clustering algorithms is:", thisRandScore
-			print "The K was = " , thisK
-			
-			if (thisRandScore > higherRandScore):
-				higherRandScore = thisRandScore
-				betterK = thisK
+			if(score_KL > overallPerformance['KL'] ):
+				overallPerformance['KL'] = score_KL
+				overallPerformance['bestkKL'] = thisK
+				
+				print "This Sill = ", overallPerformance['KL']
+					
+			if(score_E > overallPerformance['E']):
+				overallPerformance['E'] = score_E
+				overallPerformance['bestkE'] = thisK
+				
+				print "This Sill = ", overallPerformance['E']
 			
 			iterate += 1
 
+
+			
+
 		thisK += 1
+		iterate = 0
 		
 #temporary evaluation between the two clusterings that will be soon replaced with a proper evaluation technique
-	print "The highest Rand Score was: ",higherRandScore
-	print "The best K performance was: k = ",betterK
+	print "KL: The best k = ", overallPerformance['bestkKL'], "The best silhouette = ", overallPerformance['KL']
+	print "E: The best k = ", overallPerformance['bestkE'], "The best silhouette = ", overallPerformance['E']
 
+	#i = 0
+	#while i < overallPerformance['bestkKL']:
+	
+	#	print "E: Centroid = ",bestValuesE[i].centroid
+	#	print "KL Centroid = ",bestValuesK[i].centroid
+	#	i += 1
+
+	#Evaluation with Silhouette score index (the greater the index, the better is the clustering)
+	#s_scoreK = silhouette_score(cne_data, targetK, sample_size=3666)
+	#s_scoreE = silhouette_score(cne_data, targetE, sample_size=3666)
+	#print "KL - Silhouette score : ",s_scoreK
+	#print "E -  Silhouette score : ",s_scoreE
+	
 
 
 #******************************** CNE CLASS ****************************************#
@@ -334,7 +345,7 @@ def kmeans(CNEs, k, getDistance):
 		
 		# If the centroids have stopped moving much, say we're done!
 		if biggest_shift == 0.0:	
-		    print "Converged after %s iterations" %loopCounter
+		  #  print "Converged after %s iterations" %loopCounter
 		    break
 	return clusters
 
@@ -381,15 +392,18 @@ def get_K_Distance(cne,cluster):
 
 if __name__ == "__main__": 
 	i = 0
-	while i < 10:
+	finish = False
+	while not finish:
 		try:
 			main()
+			finish = True
+			
 		except:
 			print "Exception raised n. ", i
+			finish = False
 
 		i += 1
 	
-
 
 
 
