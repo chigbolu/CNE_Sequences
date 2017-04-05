@@ -1,3 +1,6 @@
+
+######### DATA IMPORTS #############
+
 import csv as csv
 import math
 import subprocess
@@ -10,8 +13,49 @@ from scipy.stats import entropy
 from sklearn.metrics.cluster import adjusted_rand_score
 from sklearn.metrics import *
 
+######## PLOT TSNE GRAPH IMPORTS
+# That's an impressive list of imports.
+import numpy as np
+from numpy import linalg
+from numpy.linalg import norm
+from scipy.spatial.distance import squareform, pdist
 
-additive_smoothing = 0.01
+# We import sklearn.
+import sklearn
+from sklearn.manifold import TSNE
+from sklearn.preprocessing import scale
+
+# We'll hack a bit with the t-SNE code in sklearn 0.15.2.
+from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.manifold.t_sne import (_joint_probabilities,
+                                    _kl_divergence)
+from sklearn.utils.extmath import _ravel
+# Random state.
+RS = 20150101
+
+# We'll use matplotlib for graphics.
+import matplotlib.pyplot as plt
+import matplotlib.patheffects as PathEffects
+import matplotlib
+#%matplotlib inline
+
+# We import seaborn to make nice plots.
+import seaborn as sns
+sns.set_style('darkgrid')
+sns.set_palette('muted')
+sns.set_context("notebook", font_scale=1.5,
+                rc={"lines.linewidth": 2.5})
+import imageio
+
+# We'll generate an animation with matplotlib and moviepy.
+from moviepy.video.io.bindings import mplfig_to_npimage
+import moviepy.editor as mpy
+
+
+################################   END IMPORTS    #############################################
+
+
+additive_smoothing = 0.0000001
 raw_data = pd.read_csv('matches.csv', header=0)
 
 #data = [value for value in raw_data]
@@ -44,8 +88,7 @@ for index, row in data_CNE_SYM.iterrows():
 	sym_dict[thisSYM]
 
 
-
-#this could be replaced with a normal dictionary that does not have array [] 
+	 
 for key in sym_dict:
 	symbols.append(key)
 
@@ -120,10 +163,9 @@ cne_names = cne_names.values.tolist()
 overallPerformance = {'E':-5,'KL':-5,'bestkKL':0, 'bestkE':0}
 thisK = 2
 iterate = 0
-bestValuesE = []
-bestValuesK = []
 targetK = []
 targetE = []
+
 
 def main():
 
@@ -131,14 +173,14 @@ def main():
 	global overallPerformance 
 	#overallPerformance = {'E':-5,'KL':-5,'bestkKL':0, 'bestkE':0}
 
-	while thisK < 6: 
+	while thisK < 5: 
 
 		global iterate 
 		global targetK
 		global targerE
 		print "Running k-Means  -  k = ",thisK 
 
-		while iterate < 10:
+		while iterate < 3:
 			cnes_objs = []
 			for row in cne_data:
 				cnes_objs.append(CNE(row))
@@ -146,7 +188,9 @@ def main():
 		# Calculate clusters applying Kmeans with Euclidean distance and Kmeans with KL distance
 
 			print "Running k-means / E .................  -- k =",thisK
-			clustersE = kmeans(cnes_objs, thisK, get_K_Distance)
+
+			clustersE = kmeans(cnes_objs, thisK, get_E_Distance)
+
 			print "Running k-means / KL.................  -- k =",thisK
 			clustersK = kmeans(cnes_objs, thisK, get_K_Distance)
 
@@ -154,8 +198,6 @@ def main():
 		# Obtain cluster values k in order to measure clustering similarity
 	
 
-			global clusterValuesE
-			global clusterValuesK
 			clusterValuesE = []
 			clusterValuesK = []
 
@@ -179,9 +221,10 @@ def main():
 
 
 
-			#score = adjusted_rand_score(clusterValuesK,clusterValuesE)
-			score_KL = silhouette_score(cne_data, clusterValuesK, sample_size= len(cne_data))
-			score_E =  silhouette_score(cne_data, clusterValuesE, sample_size=len(cne_data))
+			#silhouette calculation
+			score_KL =  silhouette_score(cne_data, clusterValuesK, sample_size= len(cne_data))
+			score_E =   silhouette_score(cne_data, clusterValuesE, sample_size=len(cne_data))
+
 
 			#print "The Rand Index between the two clustering algorithms is:", rand_score
 			#print "The K was = " , thisK
@@ -189,12 +232,14 @@ def main():
 			if(score_KL > overallPerformance['KL'] ):
 				overallPerformance['KL'] = score_KL
 				overallPerformance['bestkKL'] = thisK
+				targetK = clusterValuesK
 				
 				print "This Sill = ", overallPerformance['KL']
 					
 			if(score_E > overallPerformance['E']):
 				overallPerformance['E'] = score_E
 				overallPerformance['bestkE'] = thisK
+				targetE = clusterValuesE
 				
 				print "This Sill = ", overallPerformance['E']
 			
@@ -206,22 +251,102 @@ def main():
 		thisK += 1
 		iterate = 0
 		
-#temporary evaluation between the two clusterings that will be soon replaced with a proper evaluation technique
+
 	print "KL: The best k = ", overallPerformance['bestkKL'], "The best silhouette = ", overallPerformance['KL']
 	print "E: The best k = ", overallPerformance['bestkE'], "The best silhouette = ", overallPerformance['E']
 
-	#i = 0
-	#while i < overallPerformance['bestkKL']:
-	
-	#	print "E: Centroid = ",bestValuesE[i].centroid
-	#	print "KL Centroid = ",bestValuesK[i].centroid
-	#	i += 1
 
-	#Evaluation with Silhouette score index (the greater the index, the better is the clustering)
-	#s_scoreK = silhouette_score(cne_data, targetK, sample_size=3666)
-	#s_scoreE = silhouette_score(cne_data, targetE, sample_size=3666)
-	#print "KL - Silhouette score : ",s_scoreK
-	#print "E -  Silhouette score : ",s_scoreE
+
+
+	### Plot KL graph#####
+
+	#for row in targetK:
+	#	print row 
+	
+	cne_data2 = np.array(cne_data)
+	cne_data2.shape
+	X = np.vstack([cne_data2])
+	y = np.hstack([targetK])
+
+	tsne_Calc = TSNE(random_state=RS).fit_transform(X)
+
+	def scatter(x, colors):
+	    # We choose a color palette with seaborn.
+	    palette = np.array(sns.color_palette("hls", 10))
+
+	    # We create a scatter plot.
+	    f = plt.figure(figsize=(12, 12))
+	    ax = plt.subplot(aspect='equal')
+	    sc = ax.scatter(x[:,0], x[:,1], lw=0, s=40,
+		            c=palette[colors.astype(np.int)])
+	    plt.xlim(-25, 25)
+	    plt.ylim(-25, 25)
+	    ax.axis('off')
+	    ax.axis('tight')
+
+
+	  #add the labels for each cne
+	    txts = []
+	    for i in range(overallPerformance['bestkKL']):
+            # Position of each label.
+	   	xtext, ytext = np.median(x[colors == i, :], axis=0)
+            	txt = ax.text(xtext, ytext, str(i), fontsize=18)
+            	txt.set_path_effects([
+            		PathEffects.Stroke(linewidth=5, foreground="w"),
+            		PathEffects.Normal()])
+            	txts.append(txt)
+
+    	    return f, ax, sc, txts
+
+
+
+	
+	scatter(tsne_Calc, y)
+	plt.savefig('images/cneKL_graph.png', dpi=200)
+
+
+
+
+	##### Plot Euclidean graph #####
+	X = np.vstack([cne_data2])
+	y = np.hstack([targetE])
+
+	tsne_Calc = TSNE(random_state=RS).fit_transform(X)
+
+	def scatter(x, colors):
+	    # We choose a color palette with seaborn.
+	    palette = np.array(sns.color_palette("hls", 10))
+
+	    # We create a scatter plot.
+	    f = plt.figure(figsize=(12, 12))
+	    ax = plt.subplot(aspect='equal')
+	    sc = ax.scatter(x[:,0], x[:,1], lw=0, s=40,
+		            c=palette[colors.astype(np.int)])
+	    plt.xlim(-25, 25)
+	    plt.ylim(-25, 25)
+	    ax.axis('off')
+	    ax.axis('tight')
+
+
+	#add the labels for each cne
+	    txts = []
+	    for i in range(overallPerformance['bestkE']):
+            # Position of each label.
+	   	xtext, ytext = np.median(x[colors == i, :], axis=0)
+            	txt = ax.text(xtext, ytext, str(i), fontsize=18)
+            	txt.set_path_effects([
+            		PathEffects.Stroke(linewidth=5, foreground="w"),
+            		PathEffects.Normal()])
+            	txts.append(txt)
+
+    	    return f, ax, sc, txts
+
+
+	scatter(tsne_Calc, y)
+	plt.savefig('images/cneE_graph.png', dpi=200)
+
+
+
 	
 
 
@@ -293,9 +418,10 @@ class Cluster:
 
 def kmeans(CNEs, k, getDistance):
 
-         
+
 	initial = random.sample(CNEs, k)
 	clusters = [Cluster([f]) for f in initial]
+
 
 	loopCounter = 0
 	
@@ -403,6 +529,8 @@ if __name__ == "__main__":
 			finish = False
 
 		i += 1
+
+	#main()
 	
 
 
