@@ -47,9 +47,8 @@ sns.set_context("notebook", font_scale=1.5,
                 rc={"lines.linewidth": 2.5})
 import imageio
 
-# We'll generate an animation with matplotlib and moviepy.
-from moviepy.video.io.bindings import mplfig_to_npimage
-import moviepy.editor as mpy
+from numpy.linalg import norm
+
 
 
 ################################   END IMPORTS    #############################################
@@ -171,9 +170,8 @@ def main():
 
 	global thisK 
 	global overallPerformance 
-	#overallPerformance = {'E':-5,'KL':-5,'bestkKL':0, 'bestkE':0}
 
-	while thisK < 5: 
+	while thisK < 3: 
 
 		global iterate 
 		global targetK
@@ -226,8 +224,6 @@ def main():
 			score_E =   silhouette_score(cne_data, clusterValuesE, sample_size=len(cne_data))
 
 
-			#print "The Rand Index between the two clustering algorithms is:", rand_score
-			#print "The K was = " , thisK
 
 			if(score_KL > overallPerformance['KL'] ):
 				overallPerformance['KL'] = score_KL
@@ -268,7 +264,7 @@ def main():
 	X = np.vstack([cne_data2])
 	y = np.hstack([targetK])
 
-	tsne_Calc = TSNE(random_state=RS).fit_transform(X)
+	tsne_Calc = TSNE(random_state=RS,metric=JSD).fit_transform(X)
 
 	def scatter(x, colors):
 	    # We choose a color palette with seaborn.
@@ -284,7 +280,6 @@ def main():
 	    ax.axis('off')
 	    ax.axis('tight')
 
-
 	  #add the labels for each cne
 	    txts = []
 	    for i in range(overallPerformance['bestkKL']):
@@ -295,10 +290,11 @@ def main():
             		PathEffects.Stroke(linewidth=5, foreground="w"),
             		PathEffects.Normal()])
             	txts.append(txt)
+	    
+	    for label,x,y in zip(cne_names,x[:,0],x[:,1]):
+	    	plt.annotate(label,xy = (x,y), xytext = None,textcoords = None, bbox = None, arrowprops = None, size=5)
 
     	    return f, ax, sc, txts
-
-
 
 	
 	scatter(tsne_Calc, y)
@@ -311,7 +307,7 @@ def main():
 	X = np.vstack([cne_data2])
 	y = np.hstack([targetE])
 
-	tsne_Calc = TSNE(random_state=RS).fit_transform(X)
+	tsne_Calc = TSNE(random_state=RS,metric=JSD).fit_transform(X)
 
 	def scatter(x, colors):
 	    # We choose a color palette with seaborn.
@@ -338,6 +334,9 @@ def main():
             		PathEffects.Stroke(linewidth=5, foreground="w"),
             		PathEffects.Normal()])
             	txts.append(txt)
+	    	    
+	    for label,x,y in zip(cne_names,x[:,0],x[:,1]):
+	    	plt.annotate(label,xy = (x,y), xytext = None,textcoords = None, bbox = None, arrowprops = None, size=5)
 
     	    return f, ax, sc, txts
 
@@ -514,6 +513,21 @@ def get_K_Distance(cne,cluster):
 
 	
 
+def KL_Distance_Graph(a,b):
+      #  if(a == 0 or b == 0):
+       #    print "***********No features belong to this cluster in get_K_Distance*******************"    
+	distance = entropy(a,b)
+	#print distance
+	return distance
+
+def JSD(a,b):
+	a = a / norm(a, ord=1)
+	b = b / norm(b, ord=1)
+    	m = 0.5 * (a + b)
+    	return 0.5 * (entropy(a, m) + entropy(b, m))
+
+
+
 # INITIALISE MAIN METHOD
 
 if __name__ == "__main__": 
@@ -530,7 +544,10 @@ if __name__ == "__main__":
 
 		i += 1
 
-	#main()
+	main()
+
+
+
 	
 
 
