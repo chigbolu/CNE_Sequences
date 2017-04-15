@@ -164,6 +164,7 @@ thisK = 2
 iterate = 0
 targetK = []
 targetE = []
+coord_label = {}
 
 
 def main():
@@ -264,21 +265,58 @@ def main():
 	X = np.vstack([cne_data2])
 	y = np.hstack([targetK])
 
-	tsne_Calc = TSNE(random_state=RS,metric=JSD).fit_transform(X)
+	tsne_JSD = TSNE(random_state=RS,metric=JSD).fit_transform(X)
+	tsne_E = TSNE(random_state=RS).fit_transform(X)
+	tsne_KL = TSNE(random_state=RS,metric=JSD).fit_transform(X)
 
+
+
+	######graph points############
+
+	
+	# get only first few digits of coordinates	
+	def format_coord(a,b):
+		a = str(a)[:8]
+	        b = str(b)[:8]
+		return a + "," + b
+		
+
+	def onpick3(event):
+	  global coord_label
+   	  index = event.ind
+    	  xy = event.artist.get_offsets()
+   	  print '--------------'
+	  a = xy[index].tolist()
+	  a = str(a)
+	  # format coordinates 
+	  a_split = a.split(",")
+	  a_1 = a_split[0].replace("[[","")
+	  a_2 = a_split[1].replace("]]","")
+	  a_2 = a_2.replace(" ","")
+	  coord = format_coord(a_1,a_2)
+	  #print coord_label[coord]
+	  print seq_dict[coord_label[coord]]
+	  
+	
+	
+	
+	
 	def scatter(x, colors):
+	    global coord_label
+	    labels_in_graph = {}
+	    cne_binds = defaultdict(list)
 	    # We choose a color palette with seaborn.
 	    palette = np.array(sns.color_palette("hls", 10))
-
 	    # We create a scatter plot.
 	    f = plt.figure(figsize=(12, 12))
 	    ax = plt.subplot(aspect='equal')
 	    sc = ax.scatter(x[:,0], x[:,1], lw=0, s=40,
-		            c=palette[colors.astype(np.int)])
+		            c=palette[colors.astype(np.int)],picker=True)
 	    plt.xlim(-25, 25)
 	    plt.ylim(-25, 25)
 	    ax.axis('off')
 	    ax.axis('tight')
+	    f.canvas.mpl_connect('pick_event', onpick3)
 
 	  #add the labels for each cne
 	    txts = []
@@ -291,58 +329,48 @@ def main():
             		PathEffects.Normal()])
             	txts.append(txt)
 	    
+	    #store coordinates and cne in dictionary
 	    for label,x,y in zip(cne_names,x[:,0],x[:,1]):
-	    	plt.annotate(label,xy = (x,y), xytext = None,textcoords = None, bbox = None, arrowprops = None, size=5)
+		coor_xy = format_coord(x,y)
+	        coord_label[coor_xy] = label
+		symbols_bound = seq_dict[coord_label[coor_xy]]
+	        if(str(symbols_bound) not in labels_in_graph):
+	    		plt.annotate(symbols_bound,xy = (x,y), xytext = None,textcoords = None, bbox = None, arrowprops = None, size=5)
+			labels_in_graph[str(symbols_bound)] = 1
+		else:
+			labels_in_graph[str(symbols_bound)] += 1
+		cne_binds[str(symbols_bound)].append(label)
+
+          #  print labels_in_graph
+	  #  print "-------------------------------------------------------"
+	  #  print cne_binds
+	    with open('groups_cne.csv', 'wb') as csv_file:
+    		writer = csv.writer(csv_file)
+    		for key, value in labels_in_graph.items():
+       			writer.writerow([key, value])
+	        
+		
+	    with open('cne_binds.csv', 'wb') as csv_file:
+    		writer = csv.writer(csv_file)
+    		for key, value in cne_binds.items():
+       			writer.writerow([key, value])
+	        
+		
 
     	    return f, ax, sc, txts
 
 	
-	scatter(tsne_Calc, y)
-	plt.savefig('images/cneKL_graph.png', dpi=200)
+	#scatter(tsne_E, y)
+	#scatter(tsne_KL,y)
+	scatter(tsne_JSD,y)
+	plt.savefig('images/cne_graphJSD.png', dpi=600)
+	#plt.show()
+	
 
 
 
 
-	##### Plot Euclidean graph #####
-	X = np.vstack([cne_data2])
-	y = np.hstack([targetE])
 
-	tsne_Calc = TSNE(random_state=RS,metric=JSD).fit_transform(X)
-
-	def scatter(x, colors):
-	    # We choose a color palette with seaborn.
-	    palette = np.array(sns.color_palette("hls", 10))
-
-	    # We create a scatter plot.
-	    f = plt.figure(figsize=(12, 12))
-	    ax = plt.subplot(aspect='equal')
-	    sc = ax.scatter(x[:,0], x[:,1], lw=0, s=40,
-		            c=palette[colors.astype(np.int)])
-	    plt.xlim(-25, 25)
-	    plt.ylim(-25, 25)
-	    ax.axis('off')
-	    ax.axis('tight')
-
-
-	#add the labels for each cne
-	    txts = []
-	    for i in range(overallPerformance['bestkE']):
-            # Position of each label.
-	   	xtext, ytext = np.median(x[colors == i, :], axis=0)
-            	txt = ax.text(xtext, ytext, str(i), fontsize=18)
-            	txt.set_path_effects([
-            		PathEffects.Stroke(linewidth=5, foreground="w"),
-            		PathEffects.Normal()])
-            	txts.append(txt)
-	    	    
-	    for label,x,y in zip(cne_names,x[:,0],x[:,1]):
-	    	plt.annotate(label,xy = (x,y), xytext = None,textcoords = None, bbox = None, arrowprops = None, size=5)
-
-    	    return f, ax, sc, txts
-
-
-	scatter(tsne_Calc, y)
-	plt.savefig('images/cneE_graph.png', dpi=200)
 
 
 
@@ -508,16 +536,13 @@ def get_K_Distance(cne,cluster):
 	   
 
 	distance = entropy(cluster.features,cne.features)
-	#print distance
 	return distance
 
 	
 
 def KL_Distance_Graph(a,b):
-      #  if(a == 0 or b == 0):
-       #    print "***********No features belong to this cluster in get_K_Distance*******************"    
+
 	distance = entropy(a,b)
-	#print distance
 	return distance
 
 def JSD(a,b):
@@ -531,18 +556,18 @@ def JSD(a,b):
 # INITIALISE MAIN METHOD
 
 if __name__ == "__main__": 
-	i = 0
-	finish = False
-	while not finish:
-		try:
-			main()
-			finish = True
-			
-		except:
-			print "Exception raised n. ", i
-			finish = False
-
-		i += 1
+#	i = 0
+#	finish = False
+#	while not finish:
+#		try:
+#			main()
+#			finish = True
+#			
+##		except:
+#			print "Exception raised n. ", i
+#			finish = False
+#
+#		i += 1
 
 	main()
 
