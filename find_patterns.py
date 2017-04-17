@@ -57,8 +57,8 @@ from numpy.linalg import norm
 additive_smoothing = 0.0000001
 raw_data = pd.read_csv('matches.csv', header=0)
 
-#data = [value for value in raw_data]
-#data = np.array(data)
+
+
 
 #Extract columns "CNE Name"and "Symbol"  
 data_CNE_SYM = raw_data[['CNE_NAME','SYMBOL']]
@@ -114,18 +114,18 @@ for s in symbols:
 	cne_list.insert(i, s, additive_smoothing)
 	i+=1
 
-#print cne_list
 
 #populate the dataframe with the data from the database - how many times is each symbol bound?
 
 for index,row in cne_list.iterrows():
-
-	 #row[seq_dict[row['CNE_NAME'][0]]] += 1
 	for symb in seq_dict[row['CNE_NAME']]:
+#to do : instead of adding 1 , I should add the number of times it is bound divided by the probability of the symbol in the set
 		cne_list.ix[index,symb] += 1
+		
 
-#for index,row in cne_list.iterrows():
-#	print row
+
+
+
 
 ############# Normalise data to probability distribution values. Each rows sums 1 ####################
 
@@ -172,7 +172,7 @@ def main():
 	global thisK 
 	global overallPerformance 
 
-	while thisK < 3: 
+	while thisK < 7: 
 
 		global iterate 
 		global targetK
@@ -335,10 +335,11 @@ def main():
 	        coord_label[coor_xy] = label
 		symbols_bound = seq_dict[coord_label[coor_xy]]
 	        if(str(symbols_bound) not in labels_in_graph):
-	    		plt.annotate(symbols_bound,xy = (x,y), xytext = None,textcoords = None, bbox = None, arrowprops = None, size=5)
 			labels_in_graph[str(symbols_bound)] = 1
 		else:
 			labels_in_graph[str(symbols_bound)] += 1
+			if labels_in_graph[str(symbols_bound)] == 10:
+				plt.annotate(symbols_bound,xy = (x,y), xytext = None,textcoords = None, bbox = None, arrowprops = None, size=5)
 		cne_binds[str(symbols_bound)].append(label)
 
           #  print labels_in_graph
@@ -353,7 +354,9 @@ def main():
 	    with open('cne_binds.csv', 'wb') as csv_file:
     		writer = csv.writer(csv_file)
     		for key, value in cne_binds.items():
-       			writer.writerow([key, value])
+			if len(cne_binds[key]) > 9:
+       				writer.writerow([key, value])
+       			
 	        
 		
 
@@ -366,13 +369,6 @@ def main():
 	plt.savefig('images/cne_graphJSD.png', dpi=600)
 	#plt.show()
 	
-
-
-
-
-
-
-
 
 	
 
@@ -556,20 +552,20 @@ def JSD(a,b):
 # INITIALISE MAIN METHOD
 
 if __name__ == "__main__": 
-#	i = 0
-#	finish = False
-#	while not finish:
-#		try:
-#			main()
-#			finish = True
-#			
-##		except:
-#			print "Exception raised n. ", i
-#			finish = False
-#
-#		i += 1
+	i = 0
+	finish = False
+	while not finish:
+		try:
+			main()
+			finish = True
+			
+		except:
+			print "Exception raised n. ", i
+			finish = False
 
-	main()
+		i += 1
+
+#	main()
 
 
 
